@@ -12,6 +12,8 @@ jobs:
       - run: |
           set +e
 
+          printenv
+
           if [[ $GITHUB_EVENT_NAME != 'pull_request' ]]; then
             echo "This action should only be run with Pull Request Events"
             exit 1
@@ -19,11 +21,15 @@ jobs:
 
           jira_ticket_id=$(echo "$PR_TITLE" | grep -oE '[A-Z]+-[0-9]+')
 
-          if [[ -z $jira_ticket_id ]]; then
+          if [[ -n $jira_ticket_id ]]; then
+            echo "Jira Ticket ID: $jira_ticket_id"
+          else
             echo "No Jira Ticket ID found"
             exit 1
           fi
 
-          echo "Jira Ticket ID: $jira_ticket_id"
+          url="$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/pulls/$PULL_NUMBER"
+          echo url
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
