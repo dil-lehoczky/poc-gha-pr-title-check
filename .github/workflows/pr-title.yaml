@@ -14,3 +14,14 @@ jobs:
             echo "This action should only be run with Pull Request Events"
             exit 1
           fi
+
+          jira_ticket_id=$(echo "$PR_TITLE" | grep -oE '[A-Z]+-[0-9]+')
+
+          if [[ -z $jira_ticket_id ]]; then
+            echo "No Jira Ticket ID found"
+            exit 1
+          fi
+
+          echo "Jira Ticket ID: $jira_ticket_id"
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
