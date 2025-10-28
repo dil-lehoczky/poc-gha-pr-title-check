@@ -1,19 +1,60 @@
 name: Check PR title
 
 on:
-  push:
-    branches:
-      - "main"
   pull_request:
     types: [opened, edited, reopened, synchronize, ready_for_review]
     branches: ["main"]
 
 jobs:
   check:
+    permissions:
+      pull-requests: write
     runs-on: ubuntu-latest
     steps:
       - run: |
+          set +e
+
           if [[ $GITHUB_EVENT_NAME != 'pull_request' ]]; then
             echo "This action should only be run with Pull Request Events"
             exit 1
           fi
+
+          jira_ticket_id=$(echo "$PR_TITLE" | grep -oE '[A-Z]+-[0-9]+')
+
+          if [[ -n $jira_ticket_id ]]; then
+            echo "Jira Ticket ID: $jira_ticket_id"
+          else
+            echo "No Jira Ticket ID found"
+            exit 1
+          fi
+
+          current_pr_body_without_quotes="${PR_BODY:(1):-1}"
+          linked_ticket_prefix="🔗Linked ticket"
+
+          if [[ $current_pr_body_without_quotes == "$linked_ticket_prefix"* ]] then
+            echo "PR body already contains a linked ticket, skipping..."
+            exit 0
+          fi
+
+          linked_ticket_markdown="$linked_ticket_prefix: [$jira_ticket_id](https://atlassian.net/browse/$jira_ticket_id)"
+          pr_body_with_ticket="$linked_ticket_markdown\n\n$current_pr_body_without_quotes"
+
+          pr_endpoint="$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER"
+          request_body="{ \"body\": \"${pr_body_with_ticket}\" }"
+
+          curl -L \
+            -X PATCH \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            $pr_endpoint \
+            -d "$request_body" \
+            --silent \
+            --output /dev/null \
+            --show-error \
+            --fail-with-body
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_BODY: ${{ toJson(github.event.pull_request.body) }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
